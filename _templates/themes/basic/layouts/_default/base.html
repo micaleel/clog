@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="">
+  <meta name="author" content="Khalil Muhammad">
+
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+  <!-- Favicons -->
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="64x64">
+  <link rel="icon" href="favicon.png" sizes="64x64" type="image/png">
+
+  {% block head %}
+  <link rel="stylesheet" href="/static/style.css"/>
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans|Vollkorn&display=swap" rel="stylesheet">
+  <style>
+    * {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    h1 {
+      border-bottom: 1px dotted gainsboro;
+      margin-bottom: 32px;
+    }
+
+    html, body {
+      background: #f1f3f5;
+      font-family: "Open Sans", -apple-system, BlinkMacSystemFont, segoe ui, roboto, oxygen, ubuntu, cantarell, fira sans, droid sans, helvetica neue, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #345;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-family: "Vollkorn", -apple-system, BlinkMacSystemFont, segoe ui, roboto, oxygen, ubuntu, cantarell, fira sans, droid sans, helvetica neue, sans-serif;
+    }
+
+    #content {
+      border-radius: 2px;
+      box-shadow: 0 6px 8px rgba(102, 119, 136, .03), 0 1px 2px rgba(102, 119, 136, .3), 0 8px 12px rgba(58, 193, 203, .1);
+      background: #fff;
+      padding: 36px 32px;
+      margin-top: 24px;
+      border-top: 3px solid #8cc474;
+      margin-bottom: 20px;
+    }
+
+    .navbar {
+      box-shadow: 0 6px 8px rgba(102, 119, 136, .03), 0 1px 2px rgba(102, 119, 136, .3), 0 8px 12px rgba(58, 193, 203, .1);
+      margin-bottom: 16px;
+    }
+
+  </style>
+
+  <title>{% block title %}{% endblock %} - {{ site.title }}</title>
+  {% endblock %}
+  {% block includes %} {{ site.imports }} {% endblock %}
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-light" style="background-color: #ced4da29;">
+  <a class="navbar-brand" href="{{ site.base_url }}">{{ site.title }}</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarTogglerDemo02"
+          aria-controls="navbarTogglerDemo02" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <div class="collapse navbar-collapse" id="navbarTogglerDemo02">
+    <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
+      <li class="nav-item active">
+        <a class="nav-link" href="{{ site.base_url }}">Home <span class="sr-only">(current)</span></a>
+      </li>
+      {% for p in site.toplevel_pages %}
+      <li class="nav-item">
+        <a class="nav-link" href="{{ p.href }}">{{ p.title }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% if site.subtext %}
+    <span class="navbar-text">{{ site.subtext }}</span>
+    {% endif %}
+  </div>
+</nav>
+
+<div class="container">
+  <div class="row justify-content-md-center">
+    <div class="col-md-12">
+      <div id="content">
+        <h1>{{ title }}</h1>
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </div>
+  <!-- Optional JavaScript -->
+  <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+          integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+          crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+          integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
+          crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+          integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+          crossorigin="anonymous"></script>
+</div>
+</body>
+{% block scripts %} {{ site.scripts }} {% endblock %}
+</html>

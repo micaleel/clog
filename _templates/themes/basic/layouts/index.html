@@ -1,0 +1,17 @@
+{% extends "_default/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block head %}
+{{ super() }}
+{% endblock %}
+
+{% block content %}
+<ul id="articles">
+  {% for page in pages %}
+  {% if page.is_toplevel == false %}
+  <li>{{ page.date.strftime("%Y-%m-%d") }} <a href="{{ page.href }}">{{ page.title }}</a></li>
+  {% endif %}
+  {% endfor %}
+</ul>
+{% endblock %}
+

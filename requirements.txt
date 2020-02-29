@@ -1,0 +1,15 @@
+arrow
+attrs
+black
+Click
+Markdown
+pytest
+requests
+toml
+tornado
+mako
+pyyaml
+jinja2
+pymdown-extensions
+python-slugify
+livereload
