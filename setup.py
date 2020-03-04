@@ -4,11 +4,10 @@ from pathlib import Path
 setup(
     name="clog-cli",
     version="0.0.1-dev",
-    description="Clog",
+    description="Clog is a home-grown static site generator in Python.",
     long_description=Path("README.md").read_text(),
+    long_description_content_type='text/markdown',
     classifiers=[
-        "Development Status :: 3 - Alpha",
-        "License :: Proprietary and Confidential",
         "Programming Language :: Python :: 3.7",
     ],
     keywords="clog",
