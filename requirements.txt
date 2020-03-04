@@ -13,3 +13,5 @@ jinja2
 pymdown-extensions
 python-slugify
 livereload
+twine
+wheel
