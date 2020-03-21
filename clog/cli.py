@@ -79,7 +79,7 @@ def build():
 
 @main.command()
 @click.option(
-    "--autocommit", default=False, help="Automatically commit changes", is_flag=True
+    "--autocommit", default=True, help="Automatically commit changes", is_flag=True
 )
 def deploy(autocommit: bool):
     click.secho("Deploying to gh-pages", bold=True)

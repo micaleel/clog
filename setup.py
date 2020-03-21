@@ -6,10 +6,8 @@ setup(
     version="0.0.1-dev",
     description="Clog is a home-grown static site generator in Python.",
     long_description=Path("README.md").read_text(),
-    long_description_content_type='text/markdown',
-    classifiers=[
-        "Programming Language :: Python :: 3.7",
-    ],
+    long_description_content_type="text/markdown",
+    classifiers=["Programming Language :: Python :: 3.7",],
     keywords="clog",
     url="https://github.com/micaleel/clog",
     author="Khalil Muhammad",

@@ -1,18 +1,24 @@
 import os
 import shutil
-import subprocess
 from datetime import datetime
 from os.path import exists as path_exists
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Union, Optional, List
 
 import click
 import yaml
 from jinja2 import Environment, PackageLoader, TemplateNotFound, Template
 
-from .exceptions import CLogException, MissingContent, InvalidSite
+from .exceptions import (
+    CLogException,
+    MissingContent,
+    InvalidSite,
+    GitPermissionDenied,
+    GitException,
+)
 from .page import Page
-from .utils import get_logger, secho
+from .utils import get_logger, secho, run, GitStatus, git_status, reset
 
 LOG = get_logger(__name__)
 
@@ -224,22 +230,23 @@ class Site:
             raise MissingContent("Cannot continue because content directory is empty")
 
     def build(self):
+        secho("Converting Markdown to HTML in public/", bold=True)
         self.validate()
         # Load configuration
         self.config = yaml.load(self.config_path.read_text(), yaml.SafeLoader)
         self.theme_dir = self.cwd.joinpath("themes/{}".format(self.config["theme"]))
-
-        # Create public/ directory
         if not self.publish_dir.exists():
-            os.makedirs(self.publish_dir.as_posix(), exist_ok=True)
+            self.publish_dir.mkdir()
 
         for c in os.walk(self.content_dir.as_posix(), topdown=True):
             dirpath, dirnames, filenames = c
             is_toplevel_page = len(dirnames) == 1 and dirnames[0] == "posts"
             target_rel_dir = dirpath.replace(self.content_dir.as_posix(), "")
             for fname in filenames:
+                if not fname.endswith(".md"):
+                    continue
                 fpath = Path(dirpath).joinpath(fname).as_posix()
-                click.echo(click.style("\t ↠ {}...".format(fpath), dim=True))
+                click.echo(click.style("  ↠ {}...".format(fpath), dim=True))
                 page = Page.parse(fpath)
                 page.is_toplevel = is_toplevel_page
                 page.html_directory = target_rel_dir[1:]  # Remove the / prefix
@@ -251,17 +258,23 @@ class Site:
         self._generate()
 
     def _has_remotes(self):
-        return len(Git.run("git remote -v").stdout.decode().strip()) > 0
+        return len(run("git remote -v").strip()) > 0
 
     def _autocommit(self):
         secho("Auto-committing changes ...", fg="blue")
         timestamp = datetime.now().strftime("%H:%M:%S")
-        status = Git(self.cwd).run(
-            'git add . && git commit -m "Auto commit as {}" && git push'.format(
-                timestamp
+        try:
+            status = run(
+                'git add . && git commit -m "Auto commit as {}" && git push'.format(
+                    timestamp
+                )
             )
-        )
-        secho(status.stdout, dim=True, indent="\t")
+        except GitException as e:
+            print(type(e))
+            print(e)
+            raise
+
+        secho(status, dim=True, indent="  ")
 
     def _update_gitignore(self):
         """Add public/ directory is in .gitignore file"""
@@ -280,12 +293,12 @@ class Site:
         if dirty:
             secho(f"Adding public/ directory to .gitignore file")
             commands = "git add --all && git commit -m 'Update .gitignore'"
-            response = Git.run(commands).stdout
-            secho(response, indent="\t", dim=True)
+            response = run(commands)
+            secho(response, indent="  ", dim=True)
 
     def _init_gh_pages_branch(self, autocommit: bool = False):
-        status = Git.status()
-        if status == Git.CLEAN_WORKING_TREE:
+        status = git_status()
+        if status == GitStatus.CLEAN_WORKING_TREE:
             if not self._has_remotes():
                 secho(
                     "Git repository has no remotes. "
@@ -296,24 +309,36 @@ class Site:
                 raise CLogException()
             else:
                 # Create gh-pages branch, if necessary
-                if "gh-pages" not in Git.run("git branch").stdout.decode():
-                    commands = " && ".join(
-                        [
-                            "git push -u origin master",
-                            "git checkout -b gh-pages",
-                            "git push -u origin gh-pages",
-                            "git checkout master",
-                            "git status",
-                        ]
-                    )
-                    output = Git.run(commands).stdout
-                    secho(output, indent="\t", dim=True)
-        elif status == Git.NOT_A_GIT_REPOSITORY:
+                secho("Creating gh-pages branch", bold=True)
+                if "gh-pages" not in run("git branch"):
+                    try:
+                        commands = " && ".join(
+                            [
+                                # "git push -u origin master",
+                                "git branch -d gh-pages",
+                                "git push origin --delete gh-pages",
+                                # "git checkout -b gh-pages",
+                                "git checkout --orphan gh-pages",
+                                "git push -u origin gh-pages",
+                                "git checkout master",
+                                # "git status",
+                            ]
+                        )
+                        output = run(commands)
+                        secho(output, indent="  ", dim=True)
+                    except GitPermissionDenied:
+                        secho(
+                            "Ensure that you have the right credential to access the remote repository",
+                            bold=True,
+                            fg="red",
+                        )
+                        raise
+        elif status == GitStatus.NOT_A_GIT_REPOSITORY:
             secho(
                 "Working directory is not a Git repository", bold=True, fg="red",
             )
             raise CLogException()
-        elif status == Git.HAS_UNTRACKED_FILES:
+        elif status == GitStatus.HAS_UNTRACKED_FILES:
             secho(
                 "Working directory has changes that have not been committed.",
                 bold=True,
@@ -321,94 +346,60 @@ class Site:
             )
             if autocommit:
                 self._autocommit()
-        elif status == Git.UNKNOWN_STATUS:
+        elif status == GitStatus.UNKNOWN_STATUS:
             secho("Git repository in a status not handled by CLog")
             raise CLogException()
 
-    def _create_worktree(self):
-        # Create worktree in public/ directory, if necessary
-        output = Git.run("git worktree list | grep gh-pages").stdout.decode()
-        secho(output, dim=True, indent="\t")
-
-        exists = (
-            self.publish_dir.absolute().as_posix() in output and "gh-pages" in output
-        )
-        if not exists:
-            secho("Creating worktree for gh-pages in public/", bold=True)
-            output = Git.run("git worktree add public gh-pages").stdout.decode()
-            secho(output, dim=True, indent="\t")
-
     def deploy(self, autocommit=False):
-        """
-        Deploy /public directory to gh-pages branch on GitHub
-        """
+        """Publish to gh-phages branch on GitHub"""
 
-        # Raise an exception if user is in the wrong directory
+        # Ensure directory is appropriate
         self.validate()
         self._update_gitignore()
         self._init_gh_pages_branch(autocommit=autocommit)
-        self._create_worktree()
-        self.build()  # Create HTML pages in public/
 
-        secho("Pushing changes in /public directory", bold=True)
-        commands = "; ".join(
+        # Check if the gh-remote branch exists
+        output = run("git branch -r")
+        if "gh-pages" not in output:
+            # Set up remote gh-branch
+            run("git checkout --orphan gh-pages")
+
+            # Remove unnecessary files from master branch
+            reset(Path.cwd())
+
+            # Push publishable content to gh-pages upstream
+            commands = " && ".join(
+                [
+                    "git add .",
+                    "git commit -m 'Init gh-pages branch'",
+                    "git push -u origin gh-pages",
+                    "git checkout master",
+                ]
+            )
+            run(commands)
+
+        ghpages_path = Path.cwd().joinpath("../gh-pages").resolve()
+        ghpages_path.mkdir(exist_ok=True)
+        secho("Created temporary directory: {}".format(ghpages_path.as_posix()))
+        # Create worktree in temporary directory
+        run(f"git worktree add {ghpages_path.as_posix()} gh-pages")
+
+        # Build site
+        self.build()
+
+        # Copy built site to worktree
+        run("cp -R public/. {}".format(ghpages_path.as_posix()))
+        os.chdir(ghpages_path.as_posix())
+
+        commands = " && ".join(
             [
-                "pushd public",
-                "git add --all",
+                "git add .",
                 "git commit -m \"Build output as of $(git log '--format=format:%H' master -1)\"",
-                "git push origin gh-pages",
-                "popd",
-                # "git worktree prune",
-                "git status",
+                "git push",
+                "git worktree prune",
             ]
         )
-        output = Git.run(commands).stdout.decode()
-        secho(output, indent="\t", dim=True)
-        secho("Done. Site deployed!", bold=True)
+        run(commands)
 
-
-class Git:
-    HAS_UNTRACKED_FILES = 0
-    NOT_A_GIT_REPOSITORY = 1
-    CLEAN_WORKING_TREE = 2
-    UNKNOWN_STATUS = 3
-
-    def __init__(self, path: Union[str, Path]):
-        self.path = path if isinstance(path, Path) else Path(path).resolve()
-
-    @staticmethod
-    def run(command):
-        return subprocess.run(command, shell=True, capture_output=True)
-
-    @staticmethod
-    def _has_untracked(output):
-        snippets = [
-            b"Untracked files:",
-            b"Changes to be committed:",
-            b"Changes not staged for commit:",
-            b'nothing added to commit but untracked files present (use "git add" to track)',
-        ]
-        for s in snippets:
-            if s in output:
-                return True
-        return False
-
-    @staticmethod
-    def status():
-        result = Git.run("git status")
-
-        if (
-            result.stdout
-            == b"fatal: not a git repository (or any of the parent directories): .git\n"
-        ):
-            return Git.NOT_A_GIT_REPOSITORY
-        elif Git._has_untracked(result.stdout):
-            output = result.stdout.decode()
-            secho("Oops, something went wrong!", fg="red")
-            secho(output, indent="\t", dim=True)
-            return Git.HAS_UNTRACKED_FILES
-        elif b"nothing to commit, working tree clean" in result.stdout:
-            return Git.CLEAN_WORKING_TREE
-        else:
-            print("result == {}".format(result))
-            return Git.UNKNOWN_STATUS
+        shutil.rmtree(ghpages_path.as_posix())
+        secho("Site deployed!", bold=True)
